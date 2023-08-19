@@ -43,7 +43,7 @@ jobs:
       with:
         context: RandomQuotes
         push: true
-        tags: octopussamples/randomquotes:${{ steps.determine_version.outputs.semVer }}
+        tags: dsmercy/randomquotes:${{ steps.determine_version.outputs.semVer }}
     - name: Create Octopus Release
       uses: OctopusDeploy/create-release-action@v1.1.1
       with:
