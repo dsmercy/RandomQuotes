@@ -1,51 +1,51 @@
-name: Docker Build
+name: CI/CD Pipeline
+
 'on':
   workflow_dispatch: {}
   push: {}
+
 jobs:
-  build:
+  dotnet_build_and_test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-      with:
-        fetch-depth: '0'
-    - name: Set up DotNET Core
-      uses: actions/setup-dotnet@v1
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup DotNET Core
+      uses: actions/setup-dotnet@v2
       with:
         dotnet-version: 3.1.402
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_SAMPLES_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_SAMPLES_PASSWORD }}
-    - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v0.9.14
-      with:
-        versionSpec: 5.x
-    - id: determine_version
-      name: Determine Version
-      uses: gittools/actions/gitversion/execute@v0.9.14
-      with:
-        additionalArguments: /overrideconfig mode=Mainline
-    - name: Install Octopus Deploy CLI
-      uses: OctopusDeploy/install-octocli@v1.1.1
-      with:
-        version: latest
-    - name: Install Dependencies
+
+    - name: Restore Dependencies
       run: dotnet restore
-      shell: bash
-    - name: Test
-      run: dotnet test -l:trx	  
-    - name: Build and push
-      uses: docker/build-push-action@v3
+
+    - name: Run Tests
+      run: dotnet test -l:trx
+
+  docker_build_and_push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Build and Push Docker Image
+      uses: docker/build-push-action@v2
       with:
         context: RandomQuotes
         push: true
         tags: dsmercy/randomquotes:${{ steps.determine_version.outputs.semVer }}
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKERHUB_SAMPLES_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_SAMPLES_PASSWORD }}
+
+  octopus_deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install Octopus Deploy CLI
+      uses: OctopusDeploy/install-octocli@v1.1.1
+      with:
+        version: latest
+
     - name: Create Octopus Release
       uses: OctopusDeploy/create-release-action@v1.1.1
       with:
@@ -54,3 +54,15 @@ jobs:
         server: ${{ secrets.OCTOPUS_SERVER_URL }}
         deploy_to: Dev
         packages: Deploy container to Kubernetes:randomquotes:${{ steps.determine_version.outputs.semVer }}
+
+jobs:
+  - name: dotnet_build_and_test
+    run: dotnet_build_and_test
+
+  - name: docker_build_and_push
+    needs: dotnet_build_and_test
+    run: docker_build_and_push
+
+  - name: octopus_deploy
+    needs: docker_build_and_push
+    run: octopus_deploy
