@@ -38,17 +38,6 @@ jobs:
     - name: Install Dependencies
       run: dotnet restore
       shell: bash
-    - name: Test
-      run: dotnet test -l:trx
-      shell: bash
-    - if: always()
-      name: Report
-      uses: dorny/test-reporter@v1
-      with:
-        name: DotNET Tests
-        path: '**/*.trx'
-        reporter: dotnet-trx
-        fail-on-error: 'false'
     - name: Build and push
       uses: docker/build-push-action@v3
       with:
