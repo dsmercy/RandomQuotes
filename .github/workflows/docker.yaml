@@ -1,33 +1,18 @@
 name: CI/CD Pipeline
-
 'on':
   workflow_dispatch: {}
   push: {}
-
 jobs:
-  dotnet_build_and_test:
+  build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
-    - name: Setup DotNET Core
-      uses: actions/setup-dotnet@v2
+    - uses: actions/checkout@v1
+      with:
+        fetch-depth: '0'
+    - name: Set up DotNET Core
+      uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 3.1.402
-
-    - name: Restore Dependencies
-      run: dotnet restore
-
-    - name: Run Tests
-      run: dotnet test -l:trx
-
-  docker_build_and_push:
-    runs-on: ubuntu-latest
-    needs: dotnet_build_and_test
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
     - name: Set up Docker Buildx
@@ -46,22 +31,21 @@ jobs:
       uses: gittools/actions/gitversion/execute@v0.9.14
       with:
         additionalArguments: /overrideconfig mode=Mainline
+    - name: Install Octopus Deploy CLI
+      uses: OctopusDeploy/install-octocli@v1.1.1
+      with:
+        version: latest
+    - name: Install Dependencies
+      run: dotnet restore
+      shell: bash
+    - name: Test
+      run: dotnet test -l:trx	  
     - name: Build and push
       uses: docker/build-push-action@v3
       with:
         context: RandomQuotes
         push: true
         tags: dsmercy/randomquotes:${{ steps.determine_version.outputs.semVer }}
-
-  octopus_deploy:
-    runs-on: ubuntu-latest
-    needs: docker_build_and_push
-    steps:
-    - name: Install Octopus Deploy CLI
-      uses: OctopusDeploy/install-octocli@v1.1.1
-      with:
-        version: latest
-
     - name: Create Octopus Release
       uses: OctopusDeploy/create-release-action@v1.1.1
       with:
